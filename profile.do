@@ -178,38 +178,6 @@ program define update_deps_file
     copy "`temp_deps'" "$deps_file", replace
 end
 
-// Command to list all packages installed in project ado
-program define list_installed
-    local files : dir "$ado_dir/plus" dirs "*", respectcase
-    display as text "Packages installed in project:"
-    local count = 0
-    foreach dir of local files {
-        // Skip if not a package directory
-        if inlist("`dir'", ".", "..") continue
-        
-        // Get version info if possible
-        local version "unknown"
-        capture which `dir'
-        if (!_rc) {
-            // Extract version from package file
-            capture extract_version `dir'
-            if (!_rc) {
-                local version = r(pkg_version)
-            }
-        }
-        
-        // Count and display
-        local ++count
-        display as text "  - `dir' (version: `version')"
-    }
-    
-    if (`count' == 0) {
-        display as text "  No packages installed yet"
-    }
-    
-    display as text _n "Dependencies file: $deps_file"
-end
-
 // Command to install all packages listed in dependencies file
 program define install_deps
     // Read dependencies file
