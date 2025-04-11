@@ -56,57 +56,48 @@ if (_rc) {
     file close `deps_handle'
 }
 
-// Function to extract version from package
-program define extract_version
+// Simpler approach - search for ado file directly
+program define extract_version, rclass
     args pkg_name
     
-    local version "unknown"
-    
-    // Capture the output of 'which' command
-    tempname which_out
-    tempfile temp_file
-    
-    quietly log using "`temp_file'", text name(`which_out')
-    which `pkg_name'
-    quietly log close `which_out'
-    
-    // Read the output and look for version information
-    file open `which_out' using "`temp_file'", read text
-    file read `which_out' line
-    
-    // Skip the first line with the path info
-    file read `which_out' line
-    
-    // Check if second line has version info (common pattern)
-    if regexm("`line'", ".*version[^0-9.]*([0-9][0-9.a-z]*)") {
-        local version = regexs(1)
-    }
-    else {
-        // Look through first 5 lines for version info
-        local line_count = 0
-        while r(eof)==0 & `line_count' < 5 {
-            if regexm("`line'", ".*version[^0-9.]*([0-9][0-9.a-z]*)") {
+    local version "unknown"  // Default empty string
+    local first = substr("`pkg_name'", 1, 1)
+
+    // Try to locate the ado file in the project directory
+    local ado_dirs "`c(sysdir_plus)' `c(sysdir_personal)' `c(sysdir_site)'"
+    foreach dir of local ado_dirs {
+        local pkg_file "`dir'`first'/`pkg_name'.ado"
+        capture confirm file "`pkg_file'"
+        if !_rc {
+            // Found the file, now extract version
+            file open fh using "`pkg_file'", read text
+            file read fh first_line
+            file close fh
+            
+            // Display for debugging
+            display as text "Found ado file: `pkg_file'"
+            display as text "First line: `first_line'"
+            
+            // Extract version using simple pattern
+            if regexm("`first_line'", "\*!.*version *([0-9][0-9\.]*)") {
                 local version = regexs(1)
+                display as text "Extracted version: `version'"
                 continue, break
             }
-            file read `which_out' line
-            local line_count = `line_count' + 1
         }
     }
-    
-    file close `which_out'
     
     // Return the version
     return local pkg_version "`version'"
 end
 
-// Command to install a package directly to the project's ado directory
+/* Improved project_install program */
 program define project_install
     args pkg_name
     
     display as text "Installing `pkg_name' to project directory..."
     
-    // Install package (already using project directories due to sysdir settings)
+    // Install package
     capture net from "https://www.stata.com/stb/stbplus"
     if (_rc == 0) {
         capture net install `pkg_name', force
@@ -121,16 +112,9 @@ program define project_install
         }
     }
     
-    // Get package info using which command and extract version
-    local version "unknown"
-    capture which `pkg_name'
-    if (!_rc) {
-        // Extract version from package file
-        capture extract_version `pkg_name'
-        if (!_rc) {
-            local version = r(pkg_version)
-        }
-    }
+    // Extract version from installed package
+    capture extract_version `pkg_name'
+    local version = "`r(pkg_version)'"
     
     // Update dependencies YAML file
     update_deps_file "`pkg_name'" "`version'"
