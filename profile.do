@@ -63,19 +63,16 @@ program define extract_version
     local version "unknown"
     
     // Capture the output of 'which' command
-    tempname which_out
-    tempfile temp_file
-    
-    quietly log using "`temp_file'", text name(`which_out')
+    quietly log using which_out, text name(which_out) 
     which `pkg_name'
-    quietly log close `which_out'
+    quietly log close which_out
     
     // Read the output and look for version information
-    file open `which_out' using "`temp_file'", read text
-    file read `which_out' line
+    file open which_out using "which_out.log", read text
+    file read which_out line
     
     // Skip the first line with the path info
-    file read `which_out' line
+    file read which_out line
     
     // Check if second line has version info (common pattern)
     if regexm("`line'", ".*version[^0-9.]*([0-9][0-9.a-z]*)") {
@@ -89,14 +86,16 @@ program define extract_version
                 local version = regexs(1)
                 continue, break
             }
-            file read `which_out' line
+            file read which_out line
             local line_count = `line_count' + 1
         }
     }
     
-    file close `which_out'
+    file close which_out
+    rm "which_out.log"
     
     // Return the version
+    di as text "`version'"
     return local pkg_version "`version'"
 end
 
